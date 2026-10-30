@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Ocean blue */
+  --color-brand-50: #eef5ff;
+  --color-brand-100: #d9e8ff;
+  --color-brand-200: #b3d1ff;
+  --color-brand-300: #80b3ff;
+  --color-brand-400: #4d94ff;
+  --color-brand-500: #1f7aff;
+  --color-brand-600: #006bff;
+  --color-brand-700: #0052cc;
+  --color-brand-800: #0a3f8f;
+
+  --color-ink: #0b3558;
+  --color-canvas: #f5f8fc;
+}
+
+body {
+  @apply bg-canvas text-ink antialiased;
+}
