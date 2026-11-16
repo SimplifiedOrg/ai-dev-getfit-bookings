@@ -1,22 +1,14 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ArrowLeft, Search } from 'lucide-react'
 import Avatar from '@/components/ui/Avatar'
 import Skeleton from '@/components/ui/Skeleton'
-import { updateClass } from '@/app/staff/actions'
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser'
 import { getAttendees, getClass } from '@/lib/requests/classes'
 import { formatDay, formatTimeRange } from '@/lib/dates'
-
-// datetime-local inputs want "YYYY-MM-DDTHH:mm" in local time
-function toInputValue(iso) {
-  const d = new Date(iso)
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
 
 const inputClass =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-ink focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none'
@@ -28,23 +20,62 @@ export default function EditClassPage() {
   const [attendees, setAttendees] = useState(null)
   const [search, setSearch] = useState('')
   const [error, setError] = useState(null)
-  const [state, formAction, pending] = useActionState(updateClass, {})
+  const [instructors, setInstructors] = useState([])
+  const [form, setForm] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [status, setStatus] = useState({})
 
   useEffect(() => {
     if (!user) return
     getClass(id)
-      .then(setSession)
+      .then((data) => {
+        setSession(data)
+        setForm({
+          startsAt: data.startsAt.slice(0, 16),
+          studio: data.studio,
+          capacity: data.capacity,
+          instructorId: data.instructorId,
+        })
+      })
       .catch((err) => setError(err.message))
+    fetch('/api/instructors', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => setInstructors(data.instructors ?? []))
     getAttendees(id)
       .then(setAttendees)
       .catch((err) => setError(err.message))
   }, [user, id])
 
+  function update(field) {
+    return (e) => setForm({ ...form, [field]: e.target.value })
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setSaving(true)
+    setStatus({})
+    try {
+      const res = await fetch(`/api/staff/classes/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Something went wrong.')
+      setSession(await getClass(id))
+      setStatus({ message: 'Saved' })
+    } catch (err) {
+      setStatus({ error: err.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (userError || error) {
     return <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{userError || error}</p>
   }
 
-  if (!user || !session || !attendees) {
+  if (!user || !session || !form || !attendees) {
     return (
       <div className="grid gap-6 lg:grid-cols-2">
         <Skeleton className="h-96" />
@@ -67,16 +98,15 @@ export default function EditClassPage() {
         </Link>
         <h1 className="mt-4 text-2xl font-bold tracking-tight text-ink md:text-3xl">{session.classType.name}</h1>
         <p className="mt-1 text-slate-600">
-          {formatDay(session.startsAt)}, {formatTimeRange(session.startsAt, session.endsAt)} with {session.instructor.name}
+          {/* Not sure why the page crashes so have left with TBC as default here */}
+          {formatDay(session.startsAt)}, {formatTimeRange(session.startsAt, session.endsAt)} with {session.instructor?.name ?? 'TBC'}
         </p>
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-lg font-semibold text-ink">Edit class</h2>
-          <form action={formAction} className="space-y-4">
-            <input type="hidden" name="id" value={session.id} />
-
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="startsAt" className="mb-1 block text-sm font-medium text-slate-700">
                 Start date and time
@@ -85,7 +115,8 @@ export default function EditClassPage() {
                 id="startsAt"
                 name="startsAt"
                 type="datetime-local"
-                defaultValue={toInputValue(session.startsAt)}
+                value={form.startsAt}
+                onChange={update('startsAt')}
                 className={inputClass}
               />
             </div>
@@ -95,7 +126,7 @@ export default function EditClassPage() {
                 <label htmlFor="studio" className="mb-1 block text-sm font-medium text-slate-700">
                   Studio
                 </label>
-                <select id="studio" name="studio" defaultValue={session.studio} className={inputClass}>
+                <select id="studio" name="studio" value={form.studio} onChange={update('studio')} className={inputClass}>
                   <option>Studio 1</option>
                   <option>Studio 2</option>
                   <option>Studio 3</option>
@@ -111,22 +142,36 @@ export default function EditClassPage() {
                   name="capacity"
                   type="number"
                   min="1"
-                  defaultValue={session.capacity}
+                  value={form.capacity}
+                  onChange={update('capacity')}
                   className={inputClass}
                 />
               </div>
             </div>
 
+            <div>
+              <label htmlFor="instructor" className="mb-1 block text-sm font-medium text-slate-700">
+                Instructor
+              </label>
+              <select id="instructor" value={form.instructorId} onChange={update('instructorId')} className={inputClass}>
+                {instructors.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex items-center gap-4 pt-2">
               <button
                 type="submit"
-                disabled={pending}
+                disabled={saving}
                 className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700 disabled:opacity-50"
               >
                 Save changes
               </button>
-              {state.message && <span className="text-sm font-medium text-green-700">{state.message}</span>}
-              {state.error && <span className="text-sm text-red-600">{state.error}</span>}
+              {status.message && <span className="text-sm font-medium text-green-700">{status.message}</span>}
+              {status.error && <span className="text-sm text-red-600">{status.error}</span>}
             </div>
           </form>
         </section>

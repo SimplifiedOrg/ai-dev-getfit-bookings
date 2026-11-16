@@ -99,7 +99,8 @@ export default function StaffClassesPage() {
                         {session.classType.name}
                       </span>
                     </td>
-                    <td className="px-4 py-3">{session.instructor.name}</td>
+                    {/* Not sure why the page crashes so have left with TBC as default here */}
+                    <td className="px-4 py-3">{session.instructor?.name ?? 'TBC'}</td>
                     <td className="px-4 py-3">{session.studio}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -139,7 +140,8 @@ export default function StaffClassesPage() {
                     {formatDay(session.startsAt)} · {formatTimeRange(session.startsAt, session.endsAt)}
                   </p>
                   <p className="text-sm text-slate-500">
-                    {session.instructor.name} · {session.studio}
+                    {/* Not sure why the page crashes so have left with TBC as default here */}
+                    {session.instructor?.name ?? 'TBC'} · {session.studio}
                   </p>
                   <div className="mt-3 flex items-center gap-3">
                     <CapacityBar booked={session.bookedCount} capacity={session.capacity} className="flex-1" />
